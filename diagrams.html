@@ -1,0 +1,453 @@
+<title>Fish Feeder Rig</title>
+<meta name="description" content="Empat rajah pemasangan untuk auto feeder ikan ESP32 + servo + Blynk.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,600;10..48,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg: #eef2f1;
+    --surface: #ffffff;
+    --surface-2: #f5f8f7;
+    --ink: #15201e;
+    --ink-soft: #55635f;
+    --line: #d0dad7;
+    --accent: #0b8f8a;
+    --accent-soft: #d8ece9;
+    --shadow: 0 1px 2px rgba(20,40,38,.06), 0 8px 24px rgba(20,40,38,.05);
+    --diagram-ground: #f7faf9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1514;
+      --surface: #151f1d;
+      --surface-2: #1a2523;
+      --ink: #e5ece9;
+      --ink-soft: #93a49f;
+      --line: #2a3936;
+      --accent: #45d3ca;
+      --accent-soft: #17322f;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+      --diagram-ground: #101a18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1514;
+    --surface: #151f1d;
+    --surface-2: #1a2523;
+    --ink: #e5ece9;
+    --ink-soft: #93a49f;
+    --line: #2a3936;
+    --accent: #45d3ca;
+    --accent-soft: #17322f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    --diagram-ground: #101a18;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    line-height: 1.62;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 840px;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 4vw, 2rem) 5rem;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .72rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: "Bricolage Grotesque", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 6vw, 3.1rem);
+    line-height: 1.05;
+    letter-spacing: -.02em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  .lead {
+    font-size: 1.08rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0 0 2.5rem;
+  }
+
+  section { margin-top: 3.5rem; }
+  h2 {
+    font-family: "Bricolage Grotesque", "IBM Plex Sans", sans-serif;
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: .01em;
+    margin: 0 0 .2rem;
+  }
+  .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: block;
+    margin-bottom: .5rem;
+  }
+
+  figure {
+    margin: 1.1rem 0 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .scroll {
+    overflow-x: auto;
+    background: var(--diagram-ground);
+    padding: 1.4rem;
+  }
+  .scroll svg { display: block; width: 100%; height: auto; color: var(--ink); }
+  figcaption {
+    font-size: .9rem;
+    color: var(--ink-soft);
+    padding: 1rem 1.3rem 1.2rem;
+    border-top: 1px solid var(--line);
+  }
+  figcaption code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .82em;
+    background: var(--surface-2);
+    padding: .08em .35em;
+    border-radius: 4px;
+  }
+
+  .hot        { stroke: var(--accent); }
+  .hot-fill   { fill: var(--accent); }
+  .hot-text   { fill: var(--accent); font-weight: 500; }
+  marker.hot path { fill: var(--accent); }
+  .box { fill: var(--surface); stroke: currentColor; stroke-width: 1.5; }
+  .box-2 { fill: var(--accent-soft); stroke: currentColor; stroke-width: 1.5; }
+  text { font-family: "IBM Plex Sans", sans-serif; fill: currentColor; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  .t-title { font-size: 13px; font-weight: 600; }
+  .t-sub { font-size: 10.5px; fill: var(--ink-soft); }
+  .t-label { font-size: 11px; }
+  .wire { fill: none; stroke: currentColor; stroke-width: 1.6; }
+  .wire-hot { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+  .dash { stroke-dasharray: 6 4; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.6rem;
+    padding: .9rem 1.3rem;
+    font-size: .82rem;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: .5rem; }
+  .swatch { width: 26px; height: 0; border-top: 2.4px solid var(--ink-soft); }
+  .swatch.hot { border-top-color: var(--accent); }
+  .swatch.hot.dash { border-top-style: dashed; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.1rem;
+    font-size: .92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: .6rem .8rem;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  td.pin { font-family: "IBM Plex Mono", monospace; color: var(--accent); white-space: nowrap; }
+
+  .foot {
+    margin-top: 4rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--line);
+    font-size: .86rem;
+    color: var(--ink-soft);
+  }
+  .foot code {
+    font-family: "IBM Plex Mono", monospace;
+    background: var(--surface-2);
+    padding: .08em .35em;
+    border-radius: 4px;
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">ESP32 &middot; Servo &middot; Blynk</p>
+  <h1>Rangkaian Fish&nbsp;Feeder</h1>
+  <p class="lead">
+    Empat rajah untuk pasang auto feeder ikan: macam mana sambung litar, macam mana
+    data mengalir dari phone ke servo, apa yang berlaku setiap kali suapan, dan satu
+    contoh mekanik corong&ndash;flap.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Isyarat</th><th>Pin ESP32</th><th>Sambung ke</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Servo PWM</td><td class="pin">GPIO 13</td><td>Servo signal (wayar oren)</td></tr>
+      <tr><td>Kuasa servo</td><td class="pin">5V / VIN</td><td>Servo VCC (merah) &mdash; sama punca USB-C</td></tr>
+      <tr><td>Ground</td><td class="pin">GND</td><td>Servo GND (coklat)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ============ RAJAH 1 : LITAR ============ -->
+  <section>
+    <span class="tag">Rajah 1 &middot; Sambungan litar</span>
+    <h2>Satu kabel USB-C kuasakan ESP32 dan servo sekali</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 700 300" role="img" aria-label="Rajah litar: satu adapter USB-C bekalkan 5V ke ESP32; pin GPIO 13 ke signal servo; pin 5V/VIN ESP32 ke VCC servo; pin GND ESP32 ke GND servo. Tiada power supply berasingan." style="min-width:600px">
+          <defs>
+            <marker id="w1" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+            <marker id="w1h" class="hot" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+
+          <!-- USB-C adapter -->
+          <rect class="box" x="20" y="176" width="96" height="48" rx="6"/>
+          <text class="t-label mono" x="68" y="196" text-anchor="middle">USB-C</text>
+          <text class="t-sub" x="68" y="212" text-anchor="middle">5V adapter</text>
+          <line class="wire" x1="116" y1="200" x2="150" y2="200"/>
+
+          <!-- ESP32 -->
+          <rect class="box" x="150" y="90" width="210" height="210" rx="8"/>
+          <text class="t-title" x="255" y="118" text-anchor="middle">NodeMCU ESP32</text>
+          <text class="t-sub" x="255" y="136" text-anchor="middle">dikuasakan terus oleh USB-C</text>
+          <text class="t-label" x="348" y="194" text-anchor="end">GPIO 13</text>
+          <text class="t-label" x="348" y="239" text-anchor="end">GND</text>
+          <text class="t-label" x="348" y="281" text-anchor="end">5V / VIN</text>
+          <line class="wire" x1="360" y1="190" x2="382" y2="190"/>
+          <line class="wire" x1="360" y1="235" x2="382" y2="235"/>
+          <line class="wire" x1="360" y1="277" x2="382" y2="277"/>
+
+          <!-- Servo -->
+          <rect class="box" x="560" y="110" width="120" height="130" rx="8"/>
+          <text class="t-title" x="620" y="136" text-anchor="middle">Servo</text>
+          <text class="t-sub" x="620" y="152" text-anchor="middle">SG90</text>
+          <text class="t-label" x="574" y="172" text-anchor="start">Signal</text>
+          <text class="t-label" x="574" y="200" text-anchor="start">VCC</text>
+          <text class="t-label" x="574" y="226" text-anchor="start">GND</text>
+          <line class="wire" x1="538" y1="168" x2="560" y2="168"/>
+          <line class="wire-hot" x1="538" y1="196" x2="560" y2="196"/>
+          <line class="wire" x1="538" y1="222" x2="560" y2="222"/>
+
+          <!-- signal wire -->
+          <path class="wire" marker-end="url(#w1)" d="M382,190 L460,190 L460,168 L536,168"/>
+          <text class="t-label" x="430" y="181" text-anchor="middle">GPIO 13 &rarr; PWM</text>
+
+          <!-- +5V wire (hot: the point being made) -->
+          <path class="wire-hot" marker-end="url(#w1h)" d="M382,277 L500,277 L500,196 L536,196"/>
+          <text class="t-label hot-text" x="500" y="252" text-anchor="start">5V/VIN &rarr; VCC</text>
+          <text class="t-sub hot-text" x="500" y="266" text-anchor="start">satu punca kuasa</text>
+
+          <!-- GND wire -->
+          <path class="wire" marker-end="url(#w1)" d="M382,235 L470,235 L470,222 L536,222"/>
+          <text class="t-label" x="430" y="248" text-anchor="middle">GND &rarr; GND</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><span class="swatch hot"></span> kuasa servo &mdash; ditap dari pin 5V/VIN, sama punca dengan ESP32</span>
+      </div>
+      <figcaption>
+        Untuk satu servo <strong>SG90</strong>, tak perlu power supply berasingan.
+        Kuasa 5V dari kabel USB-C terus ke ESP32, dan pin <code>5V/VIN</code> ESP32
+        bekalkan semula VCC servo &mdash; tiga wayar sahaja dari ESP32 ke servo
+        (signal, VCC, GND). Guna <strong>adapter dinding USB-C 5V/2A</strong>, bukan
+        port USB laptop (selalunya terhad ~500mA dan boleh buat ESP32 reset bila
+        servo bergerak). Kalau nanti tukar ke servo besar (<strong>MG996R</strong>)
+        atau pasang lebih dari satu servo, arusnya boleh melebihi had regulator
+        ESP32 &mdash; barulah perlu power supply 5V berasingan dengan GND disambung
+        ke GND ESP32.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ RAJAH 2 : ALIRAN DATA ============ -->
+  <section>
+    <span class="tag">Rajah 2 &middot; Aliran data</span>
+    <h2>Feed Now perlukan internet &mdash; jadual automatik tidak</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 860 320" role="img" aria-label="Aliran data: phone hantar Feed Now ke Blynk Cloud, Blynk Cloud ke ESP32 melalui WiFi (perlu internet); server NTP segerakkan jam ESP32 masa boot; ESP32 semak jadual setiap 15 saat secara offline dan gerakkan servo dengan PWM." style="min-width:720px">
+          <defs>
+            <marker id="w2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+            <marker id="w2h" class="hot" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="310" y="34" width="170" height="54" rx="8"/>
+          <text class="t-title" x="395" y="66" text-anchor="middle">Server waktu &middot; NTP</text>
+
+          <rect class="box" x="40" y="188" width="130" height="96" rx="8"/>
+          <text class="t-title" x="105" y="230" text-anchor="middle">Phone</text>
+          <text class="t-sub" x="105" y="248" text-anchor="middle">app Blynk</text>
+
+          <rect class="box" x="250" y="196" width="150" height="84" rx="8"/>
+          <text class="t-title" x="325" y="243" text-anchor="middle">Blynk Cloud</text>
+
+          <rect class="box-2" x="490" y="172" width="175" height="128" rx="8"/>
+          <text class="t-title" x="577" y="208" text-anchor="middle">ESP32</text>
+          <text class="t-sub" x="577" y="227" text-anchor="middle">logik jadual + jam</text>
+
+          <rect class="box" x="735" y="205" width="90" height="70" rx="8"/>
+          <text class="t-title" x="780" y="245" text-anchor="middle">Servo</text>
+
+          <!-- phone -> cloud -->
+          <path class="wire-hot dash" marker-end="url(#w2h)" d="M170,236 L248,236"/>
+          <text class="t-sub" x="209" y="226" text-anchor="middle">Feed&nbsp;Now</text>
+          <!-- cloud -> esp32 -->
+          <path class="wire-hot dash" marker-end="url(#w2h)" d="M400,236 L488,236"/>
+          <text class="t-sub" x="444" y="226" text-anchor="middle">via WiFi</text>
+          <!-- ntp -> esp32 -->
+          <path class="wire-hot dash" marker-end="url(#w2h)" d="M430,88 L512,172"/>
+          <text class="t-sub" x="430" y="140" text-anchor="start">sync jam (masa boot)</text>
+          <!-- esp32 -> servo -->
+          <path class="wire" marker-end="url(#w2)" d="M665,240 L733,240"/>
+          <text class="t-sub" x="699" y="230" text-anchor="middle">PWM</text>
+          <!-- self loop -->
+          <path class="wire" marker-end="url(#w2)" d="M527,172 C527,126 590,126 590,170"/>
+          <text class="t-sub" x="558" y="120" text-anchor="middle">semak jadual / 15s</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><span class="swatch hot dash"></span> perlukan internet</span>
+        <span><span class="swatch"></span> dalam ESP32 &mdash; jalan offline</span>
+      </div>
+      <figcaption>
+        Butang <strong>Feed Now</strong> lalu melalui Blynk Cloud, jadi perlukan
+        internet di kedua-dua belah. Jadual automatik disimpan dalam ESP32 dan disemak
+        setiap 15 saat guna jam dalaman &mdash; ia terus berfungsi walaupun WiFi/internet
+        putus, asalkan ESP32 sempat sync NTP sekali dan tidak hilang kuasa. Untuk
+        jadual kalis putus-letrik, tambah modul RTC <code>DS3231</code>.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ RAJAH 3 : KITARAN SUAPAN ============ -->
+  <section>
+    <span class="tag">Rajah 3 &middot; Kitaran suapan</span>
+    <h2>Setiap suapan: buka &rarr; tunggu &rarr; tutup</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 760 250" role="img" aria-label="Mesin keadaan: dari IDLE (servo 0 darjah) ke FEEDING apabila jadual sepadan atau Feed Now ditekan, servo bergerak ke sudut buka; dari FEEDING kembali ke IDLE apabila masa berlalu melebihi durasi didarab 1000, servo kembali ke 0 darjah." style="min-width:620px">
+          <defs>
+            <marker id="w3" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="70" y="92" width="180" height="80" rx="14"/>
+          <text class="t-title" x="160" y="126" text-anchor="middle">IDLE</text>
+          <text class="t-sub" x="160" y="145" text-anchor="middle">servo 0&deg; (tutup)</text>
+
+          <rect class="box-2" x="510" y="92" width="190" height="80" rx="14"/>
+          <text class="t-title" x="605" y="126" text-anchor="middle">FEEDING</text>
+          <text class="t-sub" x="605" y="145" text-anchor="middle">servo di sudut buka</text>
+
+          <path class="wire" marker-end="url(#w3)" d="M250,116 C350,58 410,58 508,114"/>
+          <text class="t-label" x="379" y="42" text-anchor="middle">jadual sepadan &nbsp;&middot;&nbsp; atau Feed Now ditekan</text>
+          <text class="t-sub mono" x="379" y="74" text-anchor="middle">servo.write(sudut buka)</text>
+
+          <path class="wire" marker-end="url(#w3)" d="M510,148 C410,206 350,206 252,150"/>
+          <text class="t-sub mono" x="381" y="228" text-anchor="middle">millis() &minus; mula &ge; durasi &times; 1000  &rarr;  servo.write(0&deg;)</text>
+
+          <text class="t-sub" x="160" y="197" text-anchor="middle">guard: 1 slot = 1 suapan walau semak tiap 15s</text>
+        </svg>
+      </div>
+      <figcaption>
+        Kod tidak guna <code>delay()</code> &mdash; ia catat masa mula lalu tutup servo
+        bila <code>millis()</code> menunjukkan durasi sudah cukup, supaya sambungan
+        Blynk tak terputus. Slider <strong>Durasi</strong> menetapkan berapa saat servo
+        kekal terbuka; slider <strong>Sudut</strong> menetapkan sejauh mana ia berpusing.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ RAJAH 4 : MEKANIK ============ -->
+  <section>
+    <span class="tag">Rajah 4 &middot; Mekanik</span>
+    <h2>Corong dengan flap pada horn servo</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 460 360" role="img" aria-label="Keratan rentas mekanik: corong berisi pelet di atas, menyempit ke lubang bawah; servo di sisi lubang; flap tertutup mendatar merentangi lubang, dan flap terbuka berpusing turun membenarkan pelet jatuh." style="min-width:340px">
+          <defs>
+            <marker id="w4" class="hot" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+
+          <polygon class="box-2" points="100,40 360,40 315,180 145,180"/>
+          <g fill="currentColor" opacity="0.45">
+            <circle cx="160" cy="82" r="6"/><circle cx="192" cy="70" r="6"/>
+            <circle cx="224" cy="86" r="6"/><circle cx="258" cy="72" r="6"/>
+            <circle cx="288" cy="90" r="6"/><circle cx="200" cy="112" r="6"/>
+            <circle cx="242" cy="118" r="6"/><circle cx="172" cy="124" r="6"/>
+            <circle cx="214" cy="144" r="6"/><circle cx="262" cy="146" r="6"/>
+            <circle cx="196" cy="164" r="6"/><circle cx="236" cy="166" r="6"/>
+          </g>
+          <polygon class="box" points="185,180 300,180 272,236 213,236"/>
+
+          <rect class="box" x="120" y="250" width="80" height="48" rx="4"/>
+          <text class="t-sub" x="160" y="279" text-anchor="middle">servo</text>
+
+          <!-- flap closed / open -->
+          <line x1="272" y1="240" x2="200" y2="240" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+          <line x1="272" y1="240" x2="236" y2="292" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="7 4"/>
+          <circle cx="272" cy="240" r="3.5" fill="currentColor"/>
+          <path class="wire-hot" marker-end="url(#w4)" d="M214,258 A 34 34 0 0 0 242,286"/>
+
+          <text class="t-sub" x="196" y="230" text-anchor="end">flap tutup</text>
+          <text class="t-sub hot-text" x="250" y="312" text-anchor="start">flap buka</text>
+
+          <!-- falling pellets -->
+          <g class="hot-fill" opacity="0.8">
+            <circle cx="243" cy="256" r="4"/><circle cx="252" cy="276" r="4"/>
+            <circle cx="238" cy="292" r="4"/><circle cx="256" cy="308" r="4"/>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        Contoh paling mudah: botol atau corong sebagai hoper, satu plat kecil (flap)
+        pada horn servo menutup lubang bawah. Servo berpusing ke sudut buka &rarr;
+        lubang terbuka &rarr; pelet jatuh ikut graviti, kemudian servo tutup semula.
+        Makin lama <code>feedDurationSec</code>, makin banyak pelet keluar. Untuk sukatan
+        lebih tepat, guna servo <em>continuous rotation</em> + auger berskru.
+      </figcaption>
+    </figure>
+  </section>
+
+  <p class="foot">
+    Kod penuh dan langkah setup Blynk ada dalam <code>FishFeeder.ino</code> dan
+    <code>README.md</code> dalam folder projek yang sama.
+  </p>
+</div>

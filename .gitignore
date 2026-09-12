@@ -1,0 +1,13 @@
+# Secrets - JANGAN commit (WiFi password, Blynk auth token)
+secrets.h
+
+# Arduino IDE / build artifacts
+build/
+*.hex
+*.bin
+*.elf
+*.map
+
+# OS junk
+.DS_Store
+Thumbs.db
