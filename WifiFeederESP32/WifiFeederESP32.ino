@@ -5,25 +5,39 @@
  * Guna WiFi + masa internet (NTP) UNTUK JADUAL, dan Blynk UNTUK APP FON
  * (butang "Feed Now" dari mana-mana).
  *
- * NOTA PENTING: Servo ni jenis SG90 "360 degree" (continuous-rotation),
- * BUKAN positional. Dicalibrate guna ServoCalibrateESP32.ino:
- *   1500us = STOP (diam)   |   1470us = PUSING (untuk keluarkan makanan)
- * Sebab tu logik dia BUKAN "buka ke sudut X", tapi "PUSING X saat -> STOP".
+ * Servo: SG90 180 degree (positional biasa) - buka ke DOOR_OPEN, tahan,
+ * tutup balik ke DOOR_CLOSED. Laras sudut ikut mekanikal flap/pintu anda.
  *
  * Kelakuan:
  *   - Sambung WiFi, dapatkan masa sebenar (waktu Malaysia UTC+8), sambung Blynk.
- *   - Servo diam (STOP) semasa tidak memberi makan.
+ *   - Pintu TUTUP (DOOR_CLOSED) semasa tidak memberi makan.
  *   - Setiap hari 07:00 dan 19:00:
- *       ulang 3 kali { pusing FEED_SPIN_MS -> stop -> tahan sekejap }
+ *       ulang 3 kali { buka DOOR_OPEN -> tahan -> tutup DOOR_CLOSED }
  *   - Butang GPIO 14 (fizikal) -> beri makan segera.
  *   - Butang "Feed Now" (V0) dalam app Blynk -> beri makan segera dari fon.
  *   - LED status (GPIO 2 default) -> nyala = WiFi OK, berkelip = tengah sambung.
+ *   Sensor HC-SR04 -> ukur tahap dedak dalam tangki setiap 60 saat,
+ *     hantar peratus (%) ke Blynk (V1) + Serial. Amaran kalau < 15%.
  *
  * SAMBUNGAN (ESP32):
  *   Servo SIG (oren)  -> GPIO 13
- *   Servo VCC (merah) -> pin 5V / VIN ESP32   (BUKAN 3V3!)
+ *   Servo VCC (merah) -> pin 5V / VIN ESP32   (BUKAN 3V3! - servo tarik lebih arus)
  *   Servo GND (coklat)-> pin GND ESP32
- *   Butang fizikal    -> GPIO 14 dan GND (INPUT_PULLUP)
+ *   Butang (module push button, 3 kaki):
+ *     S (Signal) -> GPIO 14
+ *     + (VCC)    -> 3V3 ESP32   (BUKAN 5V/VIN - GPIO ESP32 logic 3.3V je,
+ *                                5V boleh rosakkan pin!)
+ *     - (GND)    -> GND ESP32
+ *     (Module ni ada pull-down sendiri: diam=LOW, tekan=HIGH - INPUT biasa)
+ *   Sensor HC-SR04 (ukur tahap dedak dalam tangki):
+ *     VCC  -> 5V / VIN ESP32   (HC-SR04 perlukan 5V, tak stabil kat 3.3V)
+ *     GND  -> GND ESP32
+ *     Trig -> GPIO 26          (boleh sambung terus, tiada isu voltan)
+ *     Echo -> GPIO 27 MELALUI VOLTAGE DIVIDER (⚠️ WAJIB):
+ *       Echo --[R1 1k]-- (node ke GPIO27) --[R2 2k]-- GND
+ *       (Echo output 5V, GPIO ESP32 logic 3.3V je - tanpa divider ni
+ *        boleh rosakkan pin GPIO27!)
+ *     Letak sensor di ATAS tangki, mengadap ke bawah ke arah dedak.
  *
  * NOTA KUASA:
  *   SG90 kecil OK dari VIN/5V semasa ujian (USB-C ESP32 cukup).
@@ -39,11 +53,16 @@
  *      JANGAN push fail tu ke GitHub.
  *   3. Install library "ESP32Servo" DAN "Blynk" (by Volodymyr Shymanskyy)
  *      (Sketch -> Include Library -> Manage Libraries).
- *   4. Dalam app Blynk, buat SATU Datastream: Virtual Pin V0, jenis Integer,
- *      Min 0 Max 1. Letak widget Button (mode "Push") kat V0, label "Feed Now".
+ *   4. Dalam app Blynk, buat DUA Datastream:
+ *      - V0: Virtual Pin, Integer, Min 0 Max 1 - widget Button (mode "Push"),
+ *        label "Feed Now".
+ *      - V1: Virtual Pin, Integer, Min 0 Max 100 - widget Gauge/Value Display,
+ *        label "Tahap Dedak (%)".
  *   5. Board: "ESP32 Dev Module". Port: ikut COM yang muncul (contoh COM6).
- *   6. LARAS FEED_SPIN_MS ikut berapa banyak makanan yang keluar bila diuji -
- *      makin lama pusing, makin banyak makanan (bergantung mekanikal auger anda).
+ *   6. LARAS DOOR_OPEN / DOOR_CLOSED ikut sudut sebenar mekanikal flap anda.
+ *   7. LARAS TANK_EMPTY_CM / TANK_FULL_CM: ukur jarak sebenar sensor ke
+ *      dasar tangki (kosong) dan ke permukaan dedak bila tangki baru diisi
+ *      penuh (guna pembaris/measuring tape), isi nilai tu dalam kod.
  * -------------------------------------------------------------
  */
 
@@ -72,18 +91,28 @@ const char* WIFI_PASS = WIFI_PASS_VAL;
 // ---------- Pin ----------
 const int SERVO_PIN  = 13;
 const int BUTTON_PIN = 14;
+const int TRIG_PIN   = 26;
+const int ECHO_PIN   = 27;   // MELALUI voltage divider (5V->3.3V), lihat wiring di atas
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2   // kebanyakan board ESP32 Dev Module guna GPIO2
 #endif
 
-// ---------- Kalibrasi servo continuous-rotation (dari ServoCalibrateESP32) ----------
-const int STOP_PULSE_US = 1500;   // servo diam (sudah disahkan)
-const int FEED_PULSE_US = 1470;   // servo pusing (sudah disahkan) - untuk keluarkan makanan
+// ---------- Kalibrasi tangki dedak (HC-SR04) ----------
+// Ukur jarak sebenar (cm) dari sensor ke dasar tangki (kosong) dan ke
+// permukaan dedak bila tangki baru diisi penuh - laras ikut tangki anda.
+const float TANK_EMPTY_CM = 20.0;   // jarak bila tangki KOSONG
+const float TANK_FULL_CM  = 3.0;    // jarak bila tangki PENUH
+const unsigned long LEVEL_CHECK_MS = 5000UL;    // check tahap dedak setiap 5 saat (testing - naikkan balik ke 60000+ untuk guna harian)
+const int LEVEL_WARNING_PERCENT    = 15;        // amaran bila bawah 15%
 
-const unsigned long FEED_SPIN_MS = 800UL;    // berapa lama pusing setiap kali (laras ikut ujian)
-const unsigned long PAUSE_MS     = 400UL;    // jeda antara setiap pusingan
-const int PORTIONS               = 3;        // ulang 3 kali
+// ---------- Sudut pintu (servo positional 180) ----------
+const int DOOR_CLOSED = 90;    // pintu tutup (sudut default)
+const int DOOR_OPEN   = 150;   // pintu buka
+
+const unsigned long OPEN_HOLD_MS = 1000UL;   // berapa lama pintu terbuka setiap kali
+const unsigned long PAUSE_MS     = 400UL;    // jeda antara setiap bukaan
+const int PORTIONS               = 1;        // ulang 1 kali
 
 // ---------- Jadual (jam 24, waktu Malaysia) ----------
 const int FEED_HOUR_1 = 7;    // 07:00 pagi
@@ -100,18 +129,54 @@ int lastFedYday = -1;
 int lastFedHour = -1;
 bool timeReady = false;
 
-int lastReading = HIGH, stableState = HIGH;
+int lastReading = LOW, stableState = LOW;   // module push button: diam=LOW, tekan=HIGH
 unsigned long lastDebounce = 0;
 const unsigned long DEBOUNCE_MS = 50;
+
+// Ukur jarak (cm) guna HC-SR04. Pulang -1 kalau gagal baca (timeout).
+float readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  unsigned long durationUs = pulseIn(ECHO_PIN, HIGH, 30000UL);   // timeout 30ms (~5m)
+  if (durationUs == 0) return -1.0f;
+  return durationUs * 0.0343f / 2.0f;   // kelajuan bunyi ~343 m/s
+}
+
+// Tukar jarak jadi peratus tahap dedak (0% kosong - 100% penuh). Pulang -1 kalau gagal baca.
+int readTankPercent() {
+  float d = readDistanceCm();
+  if (d < 0) return -1;
+  d = constrain(d, TANK_FULL_CM, TANK_EMPTY_CM);
+  float percent = (TANK_EMPTY_CM - d) / (TANK_EMPTY_CM - TANK_FULL_CM) * 100.0f;
+  return (int)(percent + 0.5f);
+}
+
+void checkTankLevel() {
+  int pct = readTankPercent();
+  if (pct < 0) {
+    Serial.println(F("Sensor tangki: gagal baca (timeout)"));
+    return;
+  }
+  Serial.print(F("Tahap dedak: ")); Serial.print(pct); Serial.println(F("%"));
+  if (Blynk.connected()) Blynk.virtualWrite(V1, pct);
+  if (pct < LEVEL_WARNING_PERCENT) {
+    Serial.println(F("AMARAN: dedak dalam tangki hampir habis!"));
+  }
+}
 
 void feedSession(const char* sebab) {
   Serial.print(F("=== BERI MAKAN (")); Serial.print(sebab); Serial.println(F(") ==="));
   for (int i = 0; i < PORTIONS; i++) {
-    doorServo.writeMicroseconds(FEED_PULSE_US);
-    Serial.print(F("  pusing (")); Serial.print(i + 1); Serial.print('/'); Serial.print(PORTIONS); Serial.println(')');
-    delay(FEED_SPIN_MS);
-    doorServo.writeMicroseconds(STOP_PULSE_US);
-    Serial.println(F("  stop"));
+    doorServo.write(DOOR_OPEN);
+    Serial.print(F("  buka ")); Serial.print(DOOR_OPEN);
+    Serial.print(F(" (")); Serial.print(i + 1); Serial.print('/'); Serial.print(PORTIONS); Serial.println(')');
+    delay(OPEN_HOLD_MS);
+    doorServo.write(DOOR_CLOSED);
+    Serial.print(F("  tutup ")); Serial.println(DOOR_CLOSED);
     delay(PAUSE_MS);
   }
   Serial.println(F("=== Selesai ==="));
@@ -128,7 +193,7 @@ bool buttonPressed() {
   if (millis() - lastDebounce > DEBOUNCE_MS) {
     if (reading != stableState) {
       stableState = reading;
-      if (stableState == LOW) pressed = true;   // INPUT_PULLUP
+      if (stableState == HIGH) pressed = true;   // module push button: tekan = HIGH
     }
   }
   lastReading = reading;
@@ -187,21 +252,23 @@ void setup() {
   delay(200);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT);   // module push button dah ada pull-down sendiri
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  digitalWrite(TRIG_PIN, LOW);
 
   // ESP32Servo: peruntuk timer PWM + attach dengan julat pulse yang betul
   ESP32PWM::allocateTimer(0);
   doorServo.setPeriodHertz(50);
-  doorServo.attach(SERVO_PIN, 500, 2500);
-  doorServo.writeMicroseconds(STOP_PULSE_US);   // masa ON: servo diam
+  doorServo.attach(SERVO_PIN, 500, 2400);   // julat pulse SG90
+  doorServo.write(DOOR_CLOSED);             // masa ON: pintu tutup
 
   Serial.println(F("\n=== WifiFeederESP32 sedia ==="));
   Serial.print(F("Jadual: ")); Serial.print(FEED_HOUR_1);
   Serial.print(F(":00 & ")); Serial.print(FEED_HOUR_2); Serial.println(F(":00 (waktu Malaysia)"));
-  Serial.print(F("Stop=")); Serial.print(STOP_PULSE_US);
-  Serial.print(F("us  Pusing=")); Serial.print(FEED_PULSE_US);
-  Serial.print(F("us  Tempoh pusing=")); Serial.print(FEED_SPIN_MS);
-  Serial.print(F("ms  ulang=")); Serial.println(PORTIONS);
+  Serial.print(F("Pintu tutup=")); Serial.print(DOOR_CLOSED);
+  Serial.print(F(" buka=")); Serial.print(DOOR_OPEN);
+  Serial.print(F(" ulang=")); Serial.println(PORTIONS);
 
   connectWifi();
   if (WiFi.status() == WL_CONNECTED) {
@@ -259,6 +326,13 @@ void loop() {
   // ---- Butang manual ----
   if (buttonPressed()) {
     feedSession("butang");
+  }
+
+  // ---- Tahap dedak dalam tangki (HC-SR04) ----
+  static unsigned long lastLevelCheck = 0;
+  if (millis() - lastLevelCheck >= LEVEL_CHECK_MS) {
+    lastLevelCheck = millis();
+    checkTankLevel();
   }
 
   delay(50);
