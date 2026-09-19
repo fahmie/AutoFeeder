@@ -5,19 +5,36 @@
  * Guna WiFi + masa internet (NTP) UNTUK JADUAL, dan Blynk UNTUK APP FON
  * (butang "Feed Now" dari mana-mana).
  *
- * Servo: SG90 180 degree (positional biasa) - buka ke DOOR_OPEN, tahan,
- * tutup balik ke DOOR_CLOSED. Laras sudut ikut mekanikal flap/pintu anda.
+ * Servo: SG90 180 degree (positional biasa) - buka ke sudut ikut saiz
+ * (Small/Medium/Big, boleh tukar dari app), tahan, tutup balik ke DOOR_CLOSED.
  *
  * Kelakuan:
  *   - Sambung WiFi, dapatkan masa sebenar (waktu Malaysia UTC+8), sambung Blynk.
  *   - Pintu TUTUP (DOOR_CLOSED) semasa tidak memberi makan.
- *   - Setiap hari 07:00 dan 19:00:
- *       ulang 3 kali { buka DOOR_OPEN -> tahan -> tutup DOOR_CLOSED }
+ *   - Jadual, durasi bukaan, dan saiz bukaan semua BOLEH DITUKAR dari app
+ *     Blynk (lihat "TETAPAN DINAMIK" di bawah) - tersimpan dalam flash
+ *     (Preferences), kekal walau ESP32 restart/putus letrik.
+ *   - KALAU TAK PERNAH DITETAPKAN dari app: guna default 07:00 & 19:00,
+ *     bukaan saiz Medium, tahan 1 saat - sama macam sebelum ni.
  *   - Butang GPIO 14 (fizikal) -> beri makan segera.
  *   - Butang "Feed Now" (V0) dalam app Blynk -> beri makan segera dari fon.
  *   - LED status (GPIO 2 default) -> nyala = WiFi OK, berkelip = tengah sambung.
  *   Sensor HC-SR04 -> ukur tahap dedak dalam tangki setiap 60 saat,
  *     hantar peratus (%) ke Blynk (V1) + Serial. Amaran kalau < 15%.
+ *
+ * TETAPAN DINAMIK (dari app Blynk):
+ *   - V2  Slider (100-1000)        -> durasi pintu terbuka (milisaat, maks 1 saat)
+ *   - V3  Segmented Switch (1-3)   -> saiz bukaan: 1=Small 2=Medium 3=Big
+ *   - V10-V12  Time Input x3 (APP FON SAHAJA, widget ni takde di Web
+ *     Dashboard) -> sampai 3 waktu makan sehari. Off/kosongkan widget tu
+ *     dalam app untuk matikan slot tu.
+ *     NOTA: kalau kau letak widget Text Input di Web Dashboard yang link
+ *     ke pin sama (V10/V11/V12) sekadar nak tengok, nilai yang terpapar
+ *     memang nampak macam "sampah" (contoh "68760Asia/Kuala_Lumpur1,2,3,
+ *     4,5,6,7288C") - itu format dalaman Blynk untuk Time Input, BUKAN
+ *     rosak. Jangan taip terus dalam text box tu - guna Time Input di app
+ *     untuk SET masa; text box di web cuma boleh untuk tengok (pun tak
+ *     senang dibaca), bukan untuk ubah.
  *
  * SAMBUNGAN (ESP32):
  *   Servo SIG (oren)  -> GPIO 13
@@ -53,13 +70,18 @@
  *      JANGAN push fail tu ke GitHub.
  *   3. Install library "ESP32Servo" DAN "Blynk" (by Volodymyr Shymanskyy)
  *      (Sketch -> Include Library -> Manage Libraries).
- *   4. Dalam app Blynk, buat DUA Datastream:
- *      - V0: Virtual Pin, Integer, Min 0 Max 1 - widget Button (mode "Push"),
- *        label "Feed Now".
- *      - V1: Virtual Pin, Integer, Min 0 Max 100 - widget Gauge/Value Display,
- *        label "Tahap Dedak (%)".
+ *   4. Dalam app Blynk, buat Datastream berikut:
+ *      - V0: Integer, Min 0 Max 1 - widget Button (mode "Push"), label "Feed Now".
+ *      - V1: Integer, Min 0 Max 100 - widget Gauge/Value Display, label "Tahap Dedak (%)".
+ *      - V2: Integer, Min 100 Max 1000 - widget Slider, label "Durasi Pintu (ms)".
+ *      - V3: Integer, Min 1 Max 3 - widget Segmented Switch (label tiap segmen:
+ *        1=Small, 2=Medium, 3=Big), label "Saiz Bukaan".
+ *      - V10, V11, V12: String - widget Time Input DALAM APP FON (widget ni
+ *        TIADA di Web Dashboard), label "Waktu Makan 1/2/3". Off/kosongkan
+ *        widget tu untuk matikan slot berkenaan.
  *   5. Board: "ESP32 Dev Module". Port: ikut COM yang muncul (contoh COM6).
- *   6. LARAS DOOR_OPEN / DOOR_CLOSED ikut sudut sebenar mekanikal flap anda.
+ *   6. SUDUT_SMALL / SUDUT_MEDIUM / SUDUT_BIG dan DOOR_CLOSED boleh dilaras
+ *      dalam kod ikut sudut sebenar mekanikal flap anda.
  *   7. LARAS TANK_EMPTY_CM / TANK_FULL_CM: ukur jarak sebenar sensor ke
  *      dasar tangki (kosong) dan ke permukaan dedak bila tangki baru diisi
  *      penuh (guna pembaris/measuring tape), isi nilai tu dalam kod.
@@ -82,6 +104,7 @@
 #include <BlynkSimpleEsp32.h>
 #include <time.h>
 #include <ESP32Servo.h>
+#include <Preferences.h>
 
 // ====== Diambil dari secrets.h ======
 const char* WIFI_SSID = WIFI_SSID_VAL;
@@ -101,32 +124,39 @@ const int ECHO_PIN   = 27;   // MELALUI voltage divider (5V->3.3V), lihat wiring
 // ---------- Kalibrasi tangki dedak (HC-SR04) ----------
 // Ukur jarak sebenar (cm) dari sensor ke dasar tangki (kosong) dan ke
 // permukaan dedak bila tangki baru diisi penuh - laras ikut tangki anda.
-const float TANK_EMPTY_CM = 20.0;   // jarak bila tangki KOSONG
+const float TANK_EMPTY_CM = 30.0;   // jarak bila tangki KOSONG
 const float TANK_FULL_CM  = 3.0;    // jarak bila tangki PENUH
 const unsigned long LEVEL_CHECK_MS = 5000UL;    // check tahap dedak setiap 5 saat (testing - naikkan balik ke 60000+ untuk guna harian)
 const int LEVEL_WARNING_PERCENT    = 15;        // amaran bila bawah 15%
 
 // ---------- Sudut pintu (servo positional 180) ----------
-const int DOOR_CLOSED = 90;    // pintu tutup (sudut default)
-const int DOOR_OPEN   = 150;   // pintu buka
+const int DOOR_CLOSED = 90;    // pintu tutup (sentiasa sama, tak boleh laras dari app)
 
-const unsigned long OPEN_HOLD_MS = 1000UL;   // berapa lama pintu terbuka setiap kali
-const unsigned long PAUSE_MS     = 400UL;    // jeda antara setiap bukaan
-const int PORTIONS               = 1;        // ulang 1 kali
+// Saiz bukaan (dipilih dari app Blynk, V3) - laras nombor ni ikut mekanikal flap anda
+const int SUDUT_SMALL  = 120;   // bukaan kecil
+const int SUDUT_MEDIUM = 150;   // bukaan sederhana (DEFAULT)
+const int SUDUT_BIG    = 170;   // bukaan besar
 
-// ---------- Jadual (jam 24, waktu Malaysia) ----------
-const int FEED_HOUR_1 = 7;    // 07:00 pagi
-const int FEED_HOUR_2 = 19;   // 19:00 (7 malam)
-const int FEED_MINUTE = 0;
+const unsigned long PAUSE_MS = 400UL;   // jeda antara setiap bukaan (tetap)
+const int PORTIONS           = 1;       // ulang 1 kali (tetap)
+
+#define NUM_SLOTS 3   // maksimum waktu makan sehari (boleh laras dari app, V10-V12)
 
 // ---------- Zon waktu ----------
 const long GMT_OFFSET_SEC = 8 * 3600;   // Malaysia UTC+8
 const int  DST_OFFSET_SEC = 0;          // tiada DST
 
+// ---------- Tetapan dinamik (dimuat dari flash / Blynk) ----------
+struct Slot { bool enabled; int hour; int minute; };
+Slot slots[NUM_SLOTS];
+
+int doorOpenAngle          = SUDUT_MEDIUM;   // V3 - default = Medium
+unsigned long openHoldMs   = 1000UL;         // V2 - default = 1 saat
+Preferences prefs;
+
 // ---------- Keadaan ----------
 Servo doorServo;
-int lastFedYday = -1;
-int lastFedHour = -1;
+int lastFedMinuteKey = -1;   // elak bagi makan 2x dalam minit yang sama
 bool timeReady = false;
 
 int lastReading = LOW, stableState = LOW;   // module push button: diam=LOW, tekan=HIGH
@@ -168,13 +198,53 @@ void checkTankLevel() {
   }
 }
 
+// ---------------- SIMPAN / BACA TETAPAN (flash) ----------------
+void saveConfig() {
+  prefs.begin("feeder", false);
+  prefs.putBool("configured", true);
+  prefs.putInt("angle", doorOpenAngle);
+  prefs.putInt("holdMs", (int)openHoldMs);
+  for (int i = 0; i < NUM_SLOTS; i++) {
+    char k[10];
+    sprintf(k, "s%d_en", i); prefs.putBool(k, slots[i].enabled);
+    sprintf(k, "s%d_h",  i); prefs.putInt (k, slots[i].hour);
+    sprintf(k, "s%d_m",  i); prefs.putInt (k, slots[i].minute);
+  }
+  prefs.end();
+}
+
+void loadConfig() {
+  prefs.begin("feeder", true);
+  bool sudahDitetapkan = prefs.getBool("configured", false);
+
+  if (!sudahDitetapkan) {
+    // Kali pertama guna (belum pernah ditetapkan dari app) -> default lama:
+    // 07:00 & 19:00, bukaan Medium, tahan 1 saat.
+    doorOpenAngle = SUDUT_MEDIUM;
+    openHoldMs    = 1000UL;
+    slots[0] = { true, 7, 0 };
+    slots[1] = { true, 19, 0 };
+    for (int i = 2; i < NUM_SLOTS; i++) slots[i] = { false, 0, 0 };
+  } else {
+    doorOpenAngle = prefs.getInt("angle", SUDUT_MEDIUM);
+    openHoldMs    = (unsigned long)prefs.getInt("holdMs", 1000);
+    for (int i = 0; i < NUM_SLOTS; i++) {
+      char k[10];
+      sprintf(k, "s%d_en", i); slots[i].enabled = prefs.getBool(k, false);
+      sprintf(k, "s%d_h",  i); slots[i].hour    = prefs.getInt (k, 0);
+      sprintf(k, "s%d_m",  i); slots[i].minute  = prefs.getInt (k, 0);
+    }
+  }
+  prefs.end();
+}
+
 void feedSession(const char* sebab) {
   Serial.print(F("=== BERI MAKAN (")); Serial.print(sebab); Serial.println(F(") ==="));
   for (int i = 0; i < PORTIONS; i++) {
-    doorServo.write(DOOR_OPEN);
-    Serial.print(F("  buka ")); Serial.print(DOOR_OPEN);
+    doorServo.write(doorOpenAngle);
+    Serial.print(F("  buka ")); Serial.print(doorOpenAngle);
     Serial.print(F(" (")); Serial.print(i + 1); Serial.print('/'); Serial.print(PORTIONS); Serial.println(')');
-    delay(OPEN_HOLD_MS);
+    delay(openHoldMs);
     doorServo.write(DOOR_CLOSED);
     Serial.print(F("  tutup ")); Serial.println(DOOR_CLOSED);
     delay(PAUSE_MS);
@@ -184,6 +254,47 @@ void feedSession(const char* sebab) {
 
 BLYNK_WRITE(V0) {                       // butang "Feed Now" dalam app Blynk
   if (param.asInt() == 1) feedSession("app");
+}
+
+BLYNK_WRITE(V2) {                       // slider: durasi pintu terbuka (milisaat)
+  int ms = constrain(param.asInt(), 100, 1000);
+  openHoldMs = (unsigned long)ms;
+  Serial.print(F("Durasi bukaan ditetapkan = ")); Serial.print(ms); Serial.println(F(" ms"));
+  saveConfig();
+}
+
+BLYNK_WRITE(V3) {                       // segmented switch: saiz bukaan 1=Small 2=Medium 3=Big
+  int saiz = param.asInt();
+  if (saiz == 1) doorOpenAngle = SUDUT_SMALL;
+  else if (saiz == 3) doorOpenAngle = SUDUT_BIG;
+  else doorOpenAngle = SUDUT_MEDIUM;
+  Serial.print(F("Saiz bukaan ditetapkan = ")); Serial.println(doorOpenAngle);
+  saveConfig();
+}
+
+// Waktu makan datang dari widget Time Input (app fon) - Blynk hantar dalam
+// format khas (saat dari tengah malam + zon waktu + hari + warna, digabung
+// jadi satu string). TimeInputParam decode format tu secara automatik.
+void handleTimeInput(int idx, const BlynkParam& param) {
+  TimeInputParam t(param);
+  if (t.hasStartTime()) {
+    slots[idx].enabled = true;
+    slots[idx].hour    = t.getStartHour();
+    slots[idx].minute  = t.getStartMinute();
+    Serial.printf("Waktu makan %d -> %02d:%02d ON\n", idx + 1, slots[idx].hour, slots[idx].minute);
+  } else {
+    slots[idx].enabled = false;
+    Serial.printf("Waktu makan %d OFF\n", idx + 1);
+  }
+  saveConfig();
+}
+BLYNK_WRITE(V10) { handleTimeInput(0, param); }
+BLYNK_WRITE(V11) { handleTimeInput(1, param); }
+BLYNK_WRITE(V12) { handleTimeInput(2, param); }
+
+BLYNK_CONNECTED() {
+  // minta Blynk hantar balik nilai/tetapan terkini bila sambung
+  Blynk.syncVirtual(V2, V3, V10, V11, V12);
 }
 
 bool buttonPressed() {
@@ -250,6 +361,7 @@ void syncTime() {
 void setup() {
   Serial.begin(115200);
   delay(200);
+  loadConfig();
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
   pinMode(BUTTON_PIN, INPUT);   // module push button dah ada pull-down sendiri
@@ -264,11 +376,15 @@ void setup() {
   doorServo.write(DOOR_CLOSED);             // masa ON: pintu tutup
 
   Serial.println(F("\n=== WifiFeederESP32 sedia ==="));
-  Serial.print(F("Jadual: ")); Serial.print(FEED_HOUR_1);
-  Serial.print(F(":00 & ")); Serial.print(FEED_HOUR_2); Serial.println(F(":00 (waktu Malaysia)"));
+  Serial.println(F("Jadual waktu makan:"));
+  for (int i = 0; i < NUM_SLOTS; i++) {
+    if (!slots[i].enabled) continue;
+    Serial.printf("  Slot %d: %02d:%02d\n", i + 1, slots[i].hour, slots[i].minute);
+  }
   Serial.print(F("Pintu tutup=")); Serial.print(DOOR_CLOSED);
-  Serial.print(F(" buka=")); Serial.print(DOOR_OPEN);
-  Serial.print(F(" ulang=")); Serial.println(PORTIONS);
+  Serial.print(F(" buka=")); Serial.print(doorOpenAngle);
+  Serial.print(F(" tahan=")); Serial.print(openHoldMs);
+  Serial.print(F("ms ulang=")); Serial.println(PORTIONS);
 
   connectWifi();
   if (WiFi.status() == WL_CONNECTED) {
@@ -305,14 +421,15 @@ void loop() {
     time_t now = time(nullptr);
     struct tm* t = localtime(&now);
 
-    bool jamMakan   = (t->tm_hour == FEED_HOUR_1 || t->tm_hour == FEED_HOUR_2);
-    bool minitBetul = (t->tm_min == FEED_MINUTE);
-    bool belumMakan = !(t->tm_yday == lastFedYday && t->tm_hour == lastFedHour);
-
-    if (jamMakan && minitBetul && belumMakan) {
-      feedSession("jadual");
-      lastFedYday = t->tm_yday;
-      lastFedHour = t->tm_hour;
+    int minuteKey = t->tm_hour * 60 + t->tm_min;
+    for (int i = 0; i < NUM_SLOTS; i++) {
+      if (!slots[i].enabled) continue;
+      if (slots[i].hour == t->tm_hour && slots[i].minute == t->tm_min) {
+        if (lastFedMinuteKey != minuteKey) {
+          lastFedMinuteKey = minuteKey;
+          feedSession("jadual");
+        }
+      }
     }
 
     // papar masa setiap 30 saat
