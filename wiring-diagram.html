@@ -1,0 +1,353 @@
+<title>Fish Feeder Wiring</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#F1EFE6;
+    --surface:#FBFAF2;
+    --ink:#1C2420;
+    --muted:#5C6B60;
+    --border:rgba(28,36,32,0.15);
+    --accent:#A85A22;
+    --wire-power:#B8332B;
+    --wire-ground:#6E7A6F;
+    --wire-signal:#93650F;
+    --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Consolas,monospace;
+    --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0E1713;
+      --surface:#182420;
+      --ink:#EAF1EA;
+      --muted:#9FB2A4;
+      --border:rgba(234,241,234,0.14);
+      --accent:#E2A063;
+      --wire-power:#E8756B;
+      --wire-ground:#A9B7AC;
+      --wire-signal:#E7B94E;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0E1713;
+    --surface:#182420;
+    --ink:#EAF1EA;
+    --muted:#9FB2A4;
+    --border:rgba(234,241,234,0.14);
+    --accent:#E2A063;
+    --wire-power:#E8756B;
+    --wire-ground:#A9B7AC;
+    --wire-signal:#E7B94E;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    padding-inline:20px;
+    padding-block:36px;
+    display:flex;
+    justify-content:center;
+  }
+  .page{ width:100%; max-width:1000px; }
+
+  header{ margin-bottom:28px; }
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 10px;
+  }
+  h1{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:clamp(24px,4vw,32px);
+    line-height:1.15;
+    margin:0 0 10px;
+    text-wrap:balance;
+  }
+  header p{
+    color:var(--muted);
+    font-size:15px;
+    line-height:1.6;
+    max-width:60ch;
+    margin:0;
+  }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:clamp(16px,3vw,28px);
+  }
+
+  figure{ margin:0; }
+  .diagram-scroll{ overflow-x:auto; }
+  svg{ display:block; width:100%; height:auto; min-width:640px; }
+  figcaption{
+    margin-top:16px;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.6;
+  }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px dashed var(--border);
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .dot{ width:11px; height:11px; border-radius:50%; flex:none; }
+
+  .callout{
+    margin-top:22px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--wire-power);
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .callout h2{
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    color:var(--wire-power);
+    margin:0 0 10px;
+  }
+  .callout ol{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; line-height:1.55; font-size:14.5px; }
+  .callout li:last-child{ margin-bottom:0; }
+  .callout code{
+    font-family:var(--mono);
+    font-size:0.92em;
+    background:rgba(168,90,34,0.12);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+  }
+
+  section.ref{ margin-top:32px; }
+  section.ref h2{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:17px;
+    margin:0 0 14px;
+  }
+  .table-scroll{ overflow-x:auto; }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:14px;
+    min-width:560px;
+  }
+  thead th{
+    text-align:left;
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-weight:500;
+    padding:0 12px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  tbody td{
+    padding:11px 12px;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+  }
+  tbody tr:last-child td{ border-bottom:none; }
+  td.pin{ font-family:var(--mono); color:var(--ink); white-space:nowrap; }
+  td.target{ font-family:var(--mono); font-weight:600; white-space:nowrap; }
+  td.note{ color:var(--muted); }
+  .swatch{
+    display:inline-block;
+    width:8px; height:8px;
+    border-radius:50%;
+    margin-right:7px;
+  }
+
+  footer{
+    margin-top:28px;
+    font-size:12.5px;
+    color:var(--muted);
+    text-align:center;
+  }
+
+  @media (max-width:640px){
+    svg{ min-width:820px; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <p class="eyebrow">AutoFeeder &middot; ESP32</p>
+    <h1>Sambungan wayar: ESP32 &rarr; Servo, Butang, HC-SR04</h1>
+    <p>Rujukan visual untuk wiring <code style="font-family:var(--mono)">WifiFeederESP32.ino</code> &mdash; setiap wayar diwarna ikut jenis (kuasa / GND / isyarat), sepadan dengan nama pin dalam kod.</p>
+  </header>
+
+  <div class="card">
+    <figure>
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 1000 600" role="img" aria-label="Diagram wiring ESP32 Dev Module bersambung ke servo SG90 melalui GPIO13, VCC 5V dan GND; ke push button module melalui GPIO14, 3V3 dan GND; dan ke sensor HC-SR04 melalui GPIO26 (Trig), GPIO27 (Echo, melalui voltage divider dua resistor), VCC 5V dan GND.">
+
+          <!-- ESP32 board -->
+          <rect x="300" y="60" width="480" height="110" rx="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          <rect x="258" y="92" width="44" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+          <text x="280" y="119" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)" transform="rotate(-90 280 119)">USB</text>
+          <text x="540" y="106" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="15" fill="currentColor">ESP32</text>
+          <text x="540" y="126" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--muted)">Dev Module</text>
+
+          <!-- Pin stubs -->
+          <!-- GPIO13 -->
+          <line x1="340" y1="170" x2="340" y2="420" stroke="var(--wire-signal)" stroke-width="2.5"/>
+          <text x="345" y="186" font-family="var(--mono)" font-size="11.5" fill="currentColor">GPIO13</text>
+
+          <!-- 5V/VIN (shared: servo + sensor) -->
+          <line x1="400" y1="170" x2="400" y2="200" stroke="var(--wire-power)" stroke-width="2.5"/>
+          <circle cx="400" cy="200" r="4" fill="var(--wire-power)"/>
+          <line x1="400" y1="200" x2="400" y2="420" stroke="var(--wire-power)" stroke-width="2.5"/>
+          <polyline points="400,200 400,300 770,300 770,420" fill="none" stroke="var(--wire-power)" stroke-width="2.5"/>
+          <text x="405" y="206" font-family="var(--mono)" font-size="11.5" fill="currentColor">5V/VIN</text>
+
+          <!-- GND (shared: servo + button + sensor) -->
+          <line x1="460" y1="170" x2="460" y2="200" stroke="var(--wire-ground)" stroke-width="2.5"/>
+          <circle cx="460" cy="200" r="4" fill="var(--wire-ground)"/>
+          <line x1="460" y1="200" x2="460" y2="420" stroke="var(--wire-ground)" stroke-width="2.5"/>
+          <polyline points="460,200 460,270 640,270 640,420" fill="none" stroke="var(--wire-ground)" stroke-width="2.5"/>
+          <polyline points="460,200 460,325 950,325 950,420" fill="none" stroke="var(--wire-ground)" stroke-width="2.5"/>
+          <text x="465" y="186" font-family="var(--mono)" font-size="11.5" fill="currentColor">GND</text>
+
+          <!-- 3V3 -->
+          <line x1="520" y1="170" x2="520" y2="420" stroke="var(--wire-power)" stroke-width="2.5"/>
+          <text x="525" y="206" font-family="var(--mono)" font-size="11.5" fill="currentColor">3V3</text>
+
+          <!-- GPIO14 -->
+          <line x1="580" y1="170" x2="580" y2="420" stroke="var(--wire-signal)" stroke-width="2.5"/>
+          <text x="585" y="186" font-family="var(--mono)" font-size="11.5" fill="currentColor">GPIO14</text>
+
+          <!-- GPIO26 (Trig) -->
+          <polyline points="640,170 640,335 830,335 830,420" fill="none" stroke="var(--wire-signal)" stroke-width="2.5"/>
+          <text x="645" y="206" font-family="var(--mono)" font-size="11.5" fill="currentColor">GPIO26</text>
+
+          <!-- GPIO27 (Echo, via divider) -->
+          <line x1="700" y1="170" x2="700" y2="350" stroke="var(--wire-signal)" stroke-width="2.5"/>
+          <text x="705" y="186" font-family="var(--mono)" font-size="11.5" fill="currentColor">GPIO27</text>
+
+          <!-- Voltage divider inset -->
+          <rect x="680" y="350" width="110" height="58" rx="6" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="735" y="343" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">PEMBAHAGI VOLTAN</text>
+          <line x1="700" y1="350" x2="700" y2="378" stroke="var(--wire-signal)" stroke-width="2.5"/>
+          <polyline points="700,378 706,371 714,385 722,371 730,378" fill="none" stroke="var(--wire-signal)" stroke-width="2"/>
+          <text x="715" y="368" text-anchor="middle" font-family="var(--mono)" font-size="9.5" fill="var(--muted)">1k&#937;</text>
+          <circle cx="735" cy="378" r="3.5" fill="var(--wire-signal)"/>
+          <polyline points="735,378 741,387 729,397 737,405" fill="none" stroke="var(--wire-signal)" stroke-width="2"/>
+          <text x="750" y="393" font-family="var(--mono)" font-size="9.5" fill="var(--muted)">1k&#937;</text>
+          <line x1="737" y1="405" x2="737" y2="412" stroke="var(--wire-ground)" stroke-width="2"/>
+          <line x1="727" y1="412" x2="747" y2="412" stroke="var(--wire-ground)" stroke-width="2"/>
+          <line x1="730" y1="416" x2="744" y2="416" stroke="var(--wire-ground)" stroke-width="1.5"/>
+          <line x1="733" y1="420" x2="741" y2="420" stroke="var(--wire-ground)" stroke-width="1.5"/>
+          <line x1="735" y1="378" x2="790" y2="378" stroke="var(--wire-signal)" stroke-width="2.5"/>
+          <polyline points="790,378 890,378 890,420" fill="none" stroke="var(--wire-signal)" stroke-width="2.5"/>
+
+          <!-- Servo -->
+          <rect x="280" y="420" width="240" height="105" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="340" cy="420" r="3.5" fill="var(--wire-signal)"/>
+          <circle cx="400" cy="420" r="3.5" fill="var(--wire-power)"/>
+          <circle cx="460" cy="420" r="3.5" fill="var(--wire-ground)"/>
+          <text x="340" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-signal)">SIG</text>
+          <text x="400" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-power)">VCC</text>
+          <text x="460" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-ground)">GND</text>
+          <rect x="350" y="453" width="60" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="380" cy="453" r="13" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="380" y1="453" x2="368" y2="432" stroke="currentColor" stroke-width="2"/>
+          <text x="400" y="546" text-anchor="middle" font-family="var(--sans)" font-weight="600" font-size="13" fill="currentColor">SG90 Servo (180&deg;)</text>
+          <text x="400" y="563" text-anchor="middle" font-family="var(--sans)" font-style="italic" font-size="11.5" fill="var(--muted)">positional &mdash; bukan continuous</text>
+
+          <!-- Push Button -->
+          <rect x="500" y="420" width="180" height="105" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="520" cy="420" r="3.5" fill="var(--wire-power)"/>
+          <circle cx="580" cy="420" r="3.5" fill="var(--wire-signal)"/>
+          <circle cx="640" cy="420" r="3.5" fill="var(--wire-ground)"/>
+          <text x="520" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-power)">+</text>
+          <text x="580" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-signal)">S</text>
+          <text x="640" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-ground)">GND</text>
+          <rect x="530" y="453" width="60" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="560" cy="471" r="15" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="590" y="546" text-anchor="middle" font-family="var(--sans)" font-weight="600" font-size="13" fill="currentColor">Push Button Module</text>
+          <text x="590" y="563" text-anchor="middle" font-family="var(--sans)" font-style="italic" font-size="11.5" fill="var(--muted)">tekan = HIGH (active-HIGH)</text>
+
+          <!-- HC-SR04 -->
+          <rect x="740" y="420" width="240" height="105" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="770" cy="420" r="3.5" fill="var(--wire-power)"/>
+          <circle cx="830" cy="420" r="3.5" fill="var(--wire-signal)"/>
+          <circle cx="890" cy="420" r="3.5" fill="var(--wire-signal)"/>
+          <circle cx="950" cy="420" r="3.5" fill="var(--wire-ground)"/>
+          <text x="770" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-power)">VCC</text>
+          <text x="830" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-signal)">TRIG</text>
+          <text x="890" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-signal)">ECHO</text>
+          <text x="950" y="410" text-anchor="middle" font-family="var(--mono)" font-weight="600" font-size="11" fill="var(--wire-ground)">GND</text>
+          <rect x="780" y="453" width="140" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="800" cy="472" r="15" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="900" cy="472" r="15" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="860" y="546" text-anchor="middle" font-family="var(--sans)" font-weight="600" font-size="13" fill="currentColor">HC-SR04 Ultrasonic</text>
+          <text x="860" y="563" text-anchor="middle" font-family="var(--sans)" font-style="italic" font-size="11.5" fill="var(--muted)">hala ke bawah, atas tangki</text>
+
+        </svg>
+      </div>
+      <figcaption>Setiap garis ialah satu wayar fizikal. Pin 5V/VIN dan GND dikongsi (satu pin ESP32, cabang ke beberapa komponen) &mdash; garis lain terus ke satu destinasi je.</figcaption>
+    </figure>
+
+    <div class="legend">
+      <span class="legend-item"><span class="dot" style="background:var(--wire-power)"></span>Kuasa (5V / 3V3)</span>
+      <span class="legend-item"><span class="dot" style="background:var(--wire-ground)"></span>GND (common ground)</span>
+      <span class="legend-item"><span class="dot" style="background:var(--wire-signal)"></span>Isyarat (signal/data)</span>
+    </div>
+
+    <div class="callout">
+      <h2>2 kesilapan yang paling senang jadi &mdash; semak dulu</h2>
+      <ol>
+        <li>Push button <code>VCC/+</code> &rarr; <code>3V3</code>, <strong>BUKAN</strong> 5V/VIN. Module hantar voltan VCC terus ke GPIO14 bila ditekan &mdash; 5V pada pin tu boleh rosakkan ESP32.</li>
+        <li>HC-SR04 <code>Echo</code> &rarr; <strong>WAJIB</strong> melalui pembahagi voltan (2 resistor nilai sama, cth 1k&#937;+1k&#937;) sebelum masuk GPIO27. Echo hantar 5V, GPIO ESP32 logic 3.3V je.</li>
+      </ol>
+    </div>
+  </div>
+
+  <section class="ref">
+    <h2>Rujukan pin (senarai penuh)</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Komponen</th><th>Pin komponen</th><th>Sambung ke ESP32</th><th>Nota</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Servo SG90</td><td class="pin"><span class="swatch" style="background:var(--wire-signal)"></span>Signal (oren)</td><td class="target">GPIO 13</td><td class="note">Isyarat PWM sudut pintu</td></tr>
+          <tr><td>Servo SG90</td><td class="pin"><span class="swatch" style="background:var(--wire-power)"></span>VCC (merah)</td><td class="target">5V / VIN</td><td class="note">Bukan 3V3 &mdash; servo tarik lebih arus</td></tr>
+          <tr><td>Servo SG90</td><td class="pin"><span class="swatch" style="background:var(--wire-ground)"></span>GND (coklat)</td><td class="target">GND</td><td class="note">Common ground</td></tr>
+          <tr><td>Push Button</td><td class="pin"><span class="swatch" style="background:var(--wire-signal)"></span>S / OUT</td><td class="target">GPIO 14</td><td class="note">Aktif-HIGH: diam=LOW, tekan=HIGH</td></tr>
+          <tr><td>Push Button</td><td class="pin"><span class="swatch" style="background:var(--wire-power)"></span>+ / VCC</td><td class="target">3V3</td><td class="note">Bukan 5V &mdash; boleh rosakkan GPIO14</td></tr>
+          <tr><td>Push Button</td><td class="pin"><span class="swatch" style="background:var(--wire-ground)"></span>&minus; / GND</td><td class="target">GND</td><td class="note">Common ground</td></tr>
+          <tr><td>HC-SR04</td><td class="pin"><span class="swatch" style="background:var(--wire-power)"></span>VCC</td><td class="target">5V / VIN</td><td class="note">Perlu 5V untuk bacaan stabil</td></tr>
+          <tr><td>HC-SR04</td><td class="pin"><span class="swatch" style="background:var(--wire-signal)"></span>Trig</td><td class="target">GPIO 26</td><td class="note">Sambung terus, tiada isu voltan</td></tr>
+          <tr><td>HC-SR04</td><td class="pin"><span class="swatch" style="background:var(--wire-signal)"></span>Echo</td><td class="target">GPIO 27</td><td class="note">MELALUI voltage divider (1k&#937;+1k&#937;) &mdash; wajib</td></tr>
+          <tr><td>HC-SR04</td><td class="pin"><span class="swatch" style="background:var(--wire-ground)"></span>GND</td><td class="target">GND</td><td class="note">Common ground</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Sepadan dengan WifiFeederESP32.ino &middot; AutoFeeder</footer>
+</div>
